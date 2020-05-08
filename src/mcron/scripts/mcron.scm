@@ -1,6 +1,6 @@
 ;;;; mcron -- run jobs at scheduled times
-;;; Copyright © 2003, 2012 Dale Mellor <dale_mellor@users.sourceforge.net>
-;;; Copyright © 2015, 2016, 2018 Mathieu Lirzin <mthl@gnu.org>
+;;; Copyright © 2003, 2012, 2020  Dale Mellor <>
+;;; Copyright © 2015, 2016, 2018  Mathieu Lirzin <mthl@gnu.org>
 ;;;
 ;;; This file is part of GNU Mcron.
 ;;;
@@ -19,7 +19,6 @@
 
 (define-module (mcron scripts mcron)
   #:use-module (ice-9 ftw)
-  #:use-module (ice-9 getopt-long)
   #:use-module (ice-9 local-eval)
   #:use-module (ice-9 rdelim)
   #:use-module (mcron base)
@@ -28,28 +27,6 @@
   #:use-module (mcron utils)
   #:use-module (mcron vixie-specification)
   #:export (main))
-
-
-
-(define (show-help)
-  (display "Usage: mcron [OPTION...] [FILE...]
-Run an mcron process according to the specifications in the FILE... (`-' for
-standard input), or use all the files in ~/.config/cron (or the deprecated
-~/.cron) with .guile or .vixie extensions.
-
-  -d, --daemon               Run as a daemon process
-  -i, --stdin=(guile|vixie)  Format of data passed as standard input or file
-                             arguments (default guile)
-  -s, --schedule[=N]         Display the next N (or 8) jobs that will be run
-  -?, --help                 Give this help list
-  -V, --version              Print program version
-
-Mandatory or optional arguments to long options are also mandatory or optional
-for any corresponding short options.
-
-Report bugs to bug-mcron@gnu.org.
-
-"))
 
 
 
@@ -107,38 +84,17 @@ $XDG_CONFIG_HOME is not defined uses ~/.config/cron instead)."
 ;;; Entry point.
 ;;;
 
-(define (main)
+(define (main --daemon --schedule --stdin file-list)
 
-  (let ((options
-            (getopt-long
-                (command-line)
-                `((daemon   (single-char #\d) (value #f))
-                  (stdin    (single-char #\i) (value #t)
-                            (predicate ,(λ (in) (or (string=? in "guile")
-                                                    (string=? in "vixie")))))
-                  (schedule (single-char #\s) (value optional)
-                            (predicate ,string->number))
-                  (help     (single-char #\?))
-                  (version  (single-char #\V))))))
-
-    (cond ((option-ref options 'help #f)      (show-help)             (exit 0))
-          ((option-ref options 'version #f)   (show-version "mcron")  (exit 0)))
-  
-    (when config-debug
-      (debug-enable 'backtrace))
-
-    (%process-files (option-ref options '() '())
-                    (option-ref options 'stdin "guile"))
-
-    (cond ((option-ref options 'schedule #f)
+    (when  config-debug  (debug-enable 'backtrace))
+    (%process-files   file-list   (or --stdin "guile"))
+    (cond (--schedule
                => (λ (count)
-                     (let ((c (if (string? count) (string->number count) 8)))
-                       (display-schedule  (if (exact-integer? c) (max 1 c) 8)))
+                     (display-schedule
+                        (max 1 (inexact->exact (floor (string->number count)))))
                      (exit 0)))
-          ((option-ref options 'daemon #f)
-               (case (primitive-fork)
-                     ((0)  (setsid))
-                     (else (exit 0)))))
+          (--daemon   (case (primitive-fork)  ((0)  (setsid))
+                                              (else (exit 0)))))
 
     ;; Forever execute the 'run-job-loop', and when it drops out (can only be
     ;; because a message has come in on the socket) we process the socket
@@ -150,4 +106,4 @@ $XDG_CONFIG_HOME is not defined uses ~/.config/cron instead)."
          ;; we can also drop out of run-job-loop because of a SIGCHLD,
          ;; so must test FDES-LIST.
          (unless (null? fdes-list)
-           (process-update-request fdes-list)))))))
+           (process-update-request fdes-list))))))
