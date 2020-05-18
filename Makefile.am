@@ -137,6 +137,7 @@ TESTS = \
   tests/base.scm \
   tests/environment.scm \
   tests/job-specifier.scm \
+  tests/redirect.scm \
   tests/utils.scm \
   tests/vixie-specification.scm \
   tests/vixie-time.scm

@@ -1,5 +1,6 @@
 ;;;; redirect.scm -- modify job outputs
 ;;; Copyright © 2003 Dale Mellor <dale_mellor@users.sourceforge.net>
+;;; Copyright © 2020 Mathieu Lirzin <mthl@gnu.org>
 ;;; Copyright © 2018 宋文武 <iyzsong@member.fsf.org>
 ;;;
 ;;; This file is part of GNU Mcron.
@@ -63,7 +64,10 @@
 ;; the string, and output (including the error output) being sent to a pipe
 ;; opened on a mail transport.
 
-(define (with-mail-out action . user)
+(define* (with-mail-out action #:optional user #:key
+                        (hostname (gethostname))
+                        (out (lambda ()
+                               (open-output-pipe config-sendmail))))
 
   ;; Determine the name of the user who is to recieve the mail, looking for a
   ;; name in the optional user argument, then in the MAILTO environment
@@ -72,7 +76,7 @@
 
   (let* ((mailto (getenv "MAILTO"))
          (user (cond (mailto mailto)
-                     ((not (null? user)) (car user))
+                     (user user)
                      (else (getenv "LOGNAME"))))
          (parent->child (pipe))
          (child->parent (pipe))
@@ -173,11 +177,11 @@
                                        (open-output-file "/dev/null")
                                        ;; The sendmail command should read
                                        ;; recipients from the message header.
-                                       (open-output-pipe config-sendmail)))
+                                       (out)))
           (set-current-input-port (car child->parent))
           (display "To: ") (display user) (newline)
           (display "From: mcron") (newline)
-          (display (string-append "Subject: " user "@" (gethostname)))
+          (display (string-append "Subject: " user "@" hostname))
           (newline)
           (newline)
 
